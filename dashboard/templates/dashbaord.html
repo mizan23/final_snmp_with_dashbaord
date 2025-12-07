@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>NOC Monitoring Alarms – Current Alarms</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+    <style>
+        :root {
+            /* Lighter purple / blue palette */
+            --bg-main-1: #060818;
+            --bg-main-2: #0b1024;
+            --bg-card: rgba(18, 24, 54, 0.92);
+            --bg-card-soft: rgba(22, 30, 70, 0.88);
+            --border-glass: rgba(129, 140, 248, 0.55);
+            --text-main: #f9fafb;
+            --text-soft: #cbd5f5;
+            --accent-1: #4f46e5;
+            --accent-2: #06b6d4;
+            --accent-3: #ec4899;
+
+            --sev-critical: #ff4b6e;
+            --sev-major: #f97316;
+            --sev-minor: #facc15;
+            --sev-warning: #22c55e;
+            --sev-cleared: #6b7280;
+
+            --row-hover: rgba(79, 70, 229, 0.16);
+            --scroll-thumb: rgba(129, 140, 248, 0.9);
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: var(--text-main);
+            background: radial-gradient(circle at 0% 0%, #1e1b4b 0, #020617 50%, #020617 100%);
+            overflow: hidden;
+        }
+
+        /* Softer animated background */
+        body::before {
+            content: "";
+            position: fixed;
+            inset: -40%;
+            z-index: -2;
+            background: conic-gradient(
+                from 180deg,
+                #111827,
+                #1e40af,
+                #7c3aed,
+                #f472b6,
+                #0ea5e9,
+                #111827
+            );
+            opacity: 0.14;
+            filter: blur(140px);
+            animation: bg-spin 60s linear infinite;
+        }
+
+        @keyframes bg-spin {
+            from { transform: rotate(0deg); }
+            to   { transform: rotate(360deg); }
+        }
+
+        body::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background-image:
+                linear-gradient(rgba(148, 163, 255, 0.06) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(148, 163, 255, 0.06) 1px, transparent 1px);
+            background-size: 46px 46px;
+            mix-blend-mode: soft-light;
+            pointer-events: none;
+        }
+
+        .app-shell {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 10px 16px 12px;
+            gap: 10px;
+        }
+
+        /* TOP BAR */
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 64, 175, 0.94));
+            box-shadow:
+                0 20px 60px rgba(15, 23, 42, 0.85),
+                0 0 0 1px rgba(129, 140, 248, 0.7);
+        }
+
+        .top-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: radial-gradient(circle at 30% 30%, #22c55e, #16a34a);
+            box-shadow: 0 0 10px #22c55e;
+        }
+
+        .title-main {
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        .title-sub {
+            font-size: 14px;
+            color: var(--text-soft);
+            margin-left: 6px;
+        }
+
+        .top-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--text-soft);
+        }
+
+        .pill {
+            border-radius: 999px;
+            padding: 4px 10px;
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(129, 140, 248, 0.7);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pill-label { opacity: 0.9; }
+        .pill-value { font-weight: 500; color: #e5e7eb; }
+
+        /* Severity + controls row */
+        .severity-row {
+            display: flex;
+            align-items: stretch;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .severity-cards {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            flex: 0 0 auto;
+        }
+
+        .sev-card {
+            min-width: 120px;
+            padding: 8px 12px;
+            border-radius: 14px;
+            background: radial-gradient(circle at 0 0, rgba(255, 255, 255, 0.08), transparent 50%),
+                        var(--bg-card-soft);
+            border: 1px solid rgba(129, 140, 248, 0.75);
+            box-shadow: 0 14px 35px rgba(15, 23, 42, 0.88);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .sev-card-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-soft);
+        }
+
+        .sev-card-count {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .sev-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 999px;
+            box-shadow: 0 0 7px currentColor;
+        }
+        .sev-dot.critical { color: var(--sev-critical); background: currentColor; }
+        .sev-dot.major    { color: var(--sev-major);    background: currentColor; }
+        .sev-dot.minor    { color: var(--sev-minor);    background: currentColor; }
+        .sev-dot.warning  { color: var(--sev-warning);  background: currentColor; }
+        .sev-dot.total    { color: var(--accent-2);     background: currentColor; }
+
+        .sev-card-sub {
+            font-size: 10px;
+            color: var(--text-soft);
+            opacity: 0.9;
+        }
+
+        .controls-panel {
+            flex: 1 1 auto;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: 14px;
+            background: var(--bg-card-soft);
+            border: 1px solid rgba(129, 140, 248, 0.8);
+        }
+
+        .controls-panel .group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-soft);
+        }
+
+        .controls-panel select,
+        .controls-panel input[type="text"] {
+            background: rgba(15, 23, 42, 0.94);
+            border-radius: 999px;
+            border: 1px solid rgba(129, 140, 248, 0.9);
+            color: var(--text-main);
+            padding: 5px 24px 5px 10px;
+            font-size: 12px;
+            outline: none;
+            min-width: 150px;
+        }
+
+        .controls-panel select:focus,
+        .controls-panel input[type="text"]:focus {
+            border-color: var(--accent-2);
+            box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.7);
+        }
+
+        .btn {
+            border-radius: 999px;
+            border: 1px solid rgba(129, 140, 248, 0.9);
+            padding: 6px 14px;
+            font-size: 12px;
+            color: #e5e7eb;
+            background: linear-gradient(135deg, #111827, #312e81);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s ease-out;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow:
+                0 12px 26px rgba(15, 23, 42, 0.9),
+                0 0 14px rgba(96, 165, 250, 0.85);
+        }
+
+        .toggle {
+            position: relative;
+            width: 42px;
+            height: 20px;
+            border-radius: 999px;
+            background: #020617;
+            border: 1px solid rgba(129, 140, 248, 0.9);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .toggle input { display: none; }
+
+        .toggle-thumb {
+            position: absolute;
+            top: 1px;
+            left: 1px;
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            background: #6366f1;
+            box-shadow: 0 0 8px rgba(129, 140, 248, 0.9);
+            transition: all 0.18s ease-out;
+        }
+
+        .toggle input:checked + .toggle-thumb {
+            transform: translateX(20px);
+            background: #22c55e;
+            box-shadow: 0 0 12px #22c55e;
+        }
+
+        .toggle-label {
+            font-size: 11px;
+            color: var(--text-soft);
+        }
+
+        /* MAIN CARD */
+        .main-card {
+            flex: 1 1 auto;
+            border-radius: 18px;
+            background: linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(30, 64, 175, 0.95));
+            border: 1px solid var(--border-glass);
+            box-shadow:
+                0 24px 70px rgba(15, 23, 42, 0.95),
+                0 0 0 1px rgba(59, 130, 246, 0.4);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .table-wrapper {
+            flex: 1 1 auto;
+            overflow: auto;
+            border-top: 1px solid rgba(59, 130, 246, 0.8);
+        }
+
+        .table-wrapper::-webkit-scrollbar {
+            height: 10px;
+            width: 10px;
+        }
+
+        .table-wrapper::-webkit-scrollbar-track {
+            background: #020617;
+        }
+
+        .table-wrapper::-webkit-scrollbar-thumb {
+            background: var(--scroll-thumb);
+            border-radius: 999px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            background: linear-gradient(180deg, #020617, #020617 60%, rgba(15, 23, 42, 0.98));
+            box-shadow: 0 2px 0 rgba(59, 130, 246, 0.9);
+        }
+
+        thead th {
+            padding: 8px 10px;
+            text-align: left;
+            font-weight: 500;
+            color: var(--text-soft);
+            white-space: nowrap;
+            border-bottom: 1px solid rgba(30, 64, 175, 0.9);
+        }
+
+        tbody tr {
+            border-bottom: 1px solid rgba(15, 23, 42, 0.96);
+            background: rgba(15, 23, 42, 0.96);
+            transition: background 0.12s ease-out, transform 0.08s ease-out, box-shadow 0.12s ease-out;
+        }
+
+        tbody tr:nth-child(even) {
+            background: rgba(17, 24, 39, 0.98);
+        }
+
+        tbody tr:hover {
+            background: var(--row-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.9);
+        }
+
+        /* Hottest rows – NO BLINK, just soft highlight */
+        .row-hottest {
+            background: linear-gradient(90deg, rgba(248, 113, 113, 0.12), rgba(17, 24, 39, 0.98));
+            box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.28);
+        }
+
+        tbody td {
+            padding: 7px 10px;
+            vertical-align: top;
+            white-space: nowrap;
+        }
+
+        tbody td.description-cell {
+            white-space: normal;
+            max-width: 520px;
+        }
+
+        tbody td.location-cell {
+            white-space: normal;
+            max-width: 420px;
+        }
+
+        .col-last { width: 155px; }
+        .col-ne   { width: 150px; }
+        .col-ip   { width: 115px; }
+        .col-sev  { width: 90px; }
+        .col-trap { width: 160px; }
+        .col-cat  { width: 120px; }
+        .col-loc  { width: 420px; }
+        .col-time { width: 170px; }
+
+        .sev-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 60px;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            text-transform: capitalize;
+            letter-spacing: 0.02em;
+            color: #020617;
+            font-weight: 600;
+            box-shadow: 0 0 14px rgba(15, 23, 42, 0.9);
+        }
+
+        .sev-badge.critical {
+            background: radial-gradient(circle at 30% 0, #fee2e2, #fecaca 35%, #b91c1c 100%);
+            box-shadow:
+                0 0 18px rgba(248, 113, 113, 0.95);
+        }
+
+        .sev-badge.major {
+            background: radial-gradient(circle at 30% 0, #ffedd5, #fed7aa 40%, #ea580c 100%);
+            box-shadow: 0 0 14px rgba(251, 146, 60, 0.9);
+        }
+
+        .sev-badge.minor {
+            background: radial-gradient(circle at 30% 0, #fef9c3, #fde047 45%, #b45309 100%);
+            box-shadow: 0 0 12px rgba(250, 204, 21, 0.8);
+        }
+
+        .sev-badge.warning {
+            background: radial-gradient(circle at 30% 0, #bbf7d0, #22c55e 45%, #15803d 100%);
+            box-shadow: 0 0 12px rgba(34, 197, 94, 0.85);
+        }
+
+        .sev-badge.cleared {
+            background: radial-gradient(circle at 30% 0, #e5e7eb, #9ca3af 50%, #374151 100%);
+            box-shadow: 0 0 10px rgba(156, 163, 175, 0.7);
+        }
+
+        .trap-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(129, 140, 248, 0.7);
+            background: rgba(15, 23, 42, 0.95);
+            color: #e5e7eb;
+            font-size: 11px;
+        }
+
+        .mono {
+            font-family: ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+
+        .foot-bar {
+            padding: 6px 14px 8px;
+            font-size: 11px;
+            color: var(--text-soft);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-top: 1px solid rgba(59, 130, 246, 0.9);
+            background: radial-gradient(circle at 0 0, rgba(56, 189, 248, 0.16), transparent 55%);
+        }
+
+        .foot-bar strong { color: #e5e7eb; }
+
+        @media (max-width: 1100px) {
+            .severity-row {
+                flex-direction: column;
+            }
+            .controls-panel {
+                justify-content: flex-start;
+                flex-wrap: wrap;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .top-bar {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 6px;
+            }
+            .top-right {
+                align-self: stretch;
+                justify-content: space-between;
+            }
+        }
+    </style>
+</head>
+
+<body>
+<div class="app-shell">
+    <!-- TOP BAR -->
+    <div class="top-bar">
+        <div class="top-left">
+            <div class="status-dot"></div>
+            <div>
+                <div class="title-main">
+                    NOC Monitoring Alarms <span class="title-sub">– Current Alarms</span>
+                </div>
+            </div>
+        </div>
+        <div class="top-right">
+            <div class="pill">
+                <span class="pill-label">Server:</span>
+                <span class="pill-value mono">/var/log/snmptrapd/traps.db</span>
+            </div>
+            <div class="pill">
+                <span class="pill-label">Auto refresh:</span>
+                <span class="pill-value" id="pill-auto-refresh">ON (10s)</span>
+            </div>
+            <div class="pill">
+                <span class="pill-label">Last update:</span>
+                <span class="pill-value" id="pill-last-update">–</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- SEVERITY CARDS + CONTROLS -->
+    <div class="severity-row">
+        <div class="severity-cards">
+            <div class="sev-card">
+                <div class="sev-card-label">Critical</div>
+                <div class="sev-card-count">
+                    <span class="sev-dot critical"></span>
+                    <span id="count-critical">0</span>
+                </div>
+                <div class="sev-card-sub">Highest priority alarms</div>
+            </div>
+            <div class="sev-card">
+                <div class="sev-card-label">Major</div>
+                <div class="sev-card-count">
+                    <span class="sev-dot major"></span>
+                    <span id="count-major">0</span>
+                </div>
+                <div class="sev-card-sub">Service-impacting</div>
+            </div>
+            <div class="sev-card">
+                <div class="sev-card-label">Minor</div>
+                <div class="sev-card-count">
+                    <span class="sev-dot minor"></span>
+                    <span id="count-minor">0</span>
+                </div>
+                <div class="sev-card-sub">Degraded performance</div>
+            </div>
+            <div class="sev-card">
+                <div class="sev-card-label">Warning</div>
+                <div class="sev-card-count">
+                    <span class="sev-dot warning"></span>
+                    <span id="count-warning">0</span>
+                </div>
+                <div class="sev-card-sub">Early indicators</div>
+            </div>
+            <div class="sev-card">
+                <div class="sev-card-label">Total</div>
+                <div class="sev-card-count">
+                    <span class="sev-dot total"></span>
+                    <span id="count-total">0</span>
+                </div>
+                <div class="sev-card-sub">Current alarms in view</div>
+            </div>
+        </div>
+
+        <div class="controls-panel">
+            <div class="group">
+                <span>Severity</span>
+                <select id="severity-filter">
+                    <option value="all">All severities</option>
+                    <option value="critical">Critical</option>
+                    <option value="major">Major</option>
+                    <option value="minor">Minor</option>
+                    <option value="warning">Warning</option>
+                    <option value="cleared">Cleared</option>
+                </select>
+            </div>
+
+            <div class="group">
+                <span>Quick search (NE, IP, Trap, Location, Description)</span>
+                <input type="text" id="quick-search" placeholder="Type to filter…" />
+            </div>
+
+            <div class="group">
+                <span>Auto refresh</span>
+                <select id="auto-refresh">
+                    <option value="0">Off</option>
+                    <option value="10">10 sec</option>
+                    <option value="30">30 sec</option>
+                    <option value="60">60 sec</option>
+                </select>
+            </div>
+
+            <button class="btn" id="btn-refresh">⟳ Refresh</button>
+
+            <div class="group">
+                <label class="toggle">
+                    <input type="checkbox" id="toggle-cleared" />
+                    <div class="toggle-thumb"></div>
+                </label>
+                <span class="toggle-label">Include cleared (Recovery) in list</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN TABLE -->
+    <div class="main-card">
+        <div class="table-wrapper">
+            <table id="alarms-table">
+                <thead>
+                <tr>
+                    <th class="col-last">Last occurred</th>
+                    <th class="col-ne">NE</th>
+                    <th class="col-ip">IP</th>
+                    <th class="col-sev">Severity</th>
+                    <th class="col-trap">Trap</th>
+                    <th class="col-cat">Category</th>
+                    <th class="col-loc">Location / Source</th>
+                    <th class="col-time">Alarm time</th>
+                    <th>Description</th>
+                </tr>
+                </thead>
+                <tbody>
+                <!-- filled by JS -->
+                </tbody>
+            </table>
+        </div>
+        <div class="foot-bar">
+            <div> Total current alarms (after filter): <strong id="foot-total">0</strong> </div>
+            <div class="mono" id="foot-view-mode">
+                View: Current alarm state (auto-clears on Recovery)
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let allAlarms = [];
+    let filteredAlarms = [];
+    let refreshTimer = null;
+
+    const severityRank = {
+        critical: 4,
+        major: 3,
+        minor: 2,
+        warning: 1,
+        cleared: 0
+    };
+
+    function setAutoRefreshFromSelect() {
+        const sel = document.getElementById("auto-refresh");
+        const value = parseInt(sel.value, 10) || 0;
+
+        if (refreshTimer) {
+            clearInterval(refreshTimer);
+            refreshTimer = null;
+        }
+        if (value > 0) {
+            refreshTimer = setInterval(loadAlarms, value * 1000);
+            document.getElementById("pill-auto-refresh").textContent = `ON (${value}s)`;
+        } else {
+            document.getElementById("pill-auto-refresh").textContent = "OFF";
+        }
+    }
+
+    async function loadAlarms() {
+        const includeCleared = document.getElementById("toggle-cleared").checked;
+        const url = `/api/alarms?limit=400&include_cleared=${includeCleared ? "1" : "0"}`;
+
+        try {
+            const res = await fetch(url, { cache: "no-store" });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            allAlarms = Array.isArray(data.alarms) ? data.alarms : [];
+        } catch (err) {
+            console.error("Failed to load alarms:", err);
+            allAlarms = [];
+        }
+
+        applyFiltersAndRender();
+
+        const now = new Date();
+        document.getElementById("pill-last-update").textContent = now.toLocaleTimeString();
+    }
+
+    function applyFiltersAndRender() {
+        const sevFilter = document.getElementById("severity-filter").value;
+        const q = document.getElementById("quick-search").value.trim().toLowerCase();
+
+        filteredAlarms = allAlarms.filter(a => {
+            const sev = (a.severity || "").toLowerCase();
+            if (sevFilter !== "all" && sev !== sevFilter) return false;
+
+            if (q) {
+                const haystack = [
+                    a.ne_name,
+                    a.ne_ip,
+                    a.trap_name,
+                    a.category,
+                    a.location,
+                    a.description
+                ].join(" ").toLowerCase();
+                if (!haystack.includes(q)) return false;
+            }
+            return true;
+        });
+
+        renderTable(filteredAlarms);
+        updateCounters(filteredAlarms);
+    }
+
+    function updateCounters(alarms) {
+        let cCritical = 0, cMajor = 0, cMinor = 0, cWarning = 0;
+        for (const a of alarms) {
+            const sev = (a.severity || "").toLowerCase();
+            if (sev === "critical") cCritical++;
+            else if (sev === "major") cMajor++;
+            else if (sev === "minor") cMinor++;
+            else if (sev === "warning") cWarning++;
+        }
+
+        document.getElementById("count-critical").textContent = cCritical;
+        document.getElementById("count-major").textContent = cMajor;
+        document.getElementById("count-minor").textContent = cMinor;
+        document.getElementById("count-warning").textContent = cWarning;
+        document.getElementById("count-total").textContent = alarms.length;
+        document.getElementById("foot-total").textContent = alarms.length;
+    }
+
+    function renderTable(alarms) {
+        const tbody = document.querySelector("#alarms-table tbody");
+        tbody.innerHTML = "";
+
+        if (!alarms.length) {
+            const tr = document.createElement("tr");
+            const td = document.createElement("td");
+            td.colSpan = 9;
+            td.style.textAlign = "center";
+            td.style.padding = "40px 0";
+            td.style.color = "#9ca3af";
+            td.textContent = "No alarms in the current view.";
+            tr.appendChild(td);
+            tbody.appendChild(tr);
+            return;
+        }
+
+        // Find highest severity for soft highlight
+        let maxRank = -1;
+        for (const a of alarms) {
+            const sev = (a.severity || "").toLowerCase();
+            const r = severityRank[sev] ?? -1;
+            if (r > maxRank && sev !== "cleared") maxRank = r;
+        }
+
+        for (const alarm of alarms) {
+            const tr = document.createElement("tr");
+
+            const sev = (alarm.severity || "").toLowerCase();
+            const rowRank = severityRank[sev] ?? -1;
+            if (rowRank === maxRank && rowRank > 1) {
+                tr.classList.add("row-hottest");   // NO blinking, just soft highlight
+            }
+
+            tr.innerHTML = `
+                <td class="col-last mono">${escapeHtml(alarm.received_at || "")}</td>
+                <td class="col-ne">${escapeHtml(alarm.ne_name || "-")}</td>
+                <td class="col-ip mono">${escapeHtml(alarm.ne_ip || "")}</td>
+                <td class="col-sev">${renderSeverityBadge(sev)}</td>
+                <td class="col-trap"><span class="trap-pill mono">${escapeHtml(alarm.trap_name || "")}</span></td>
+                <td class="col-cat">${escapeHtml(alarm.category || "")}</td>
+                <td class="col-loc location-cell mono">${escapeHtml(alarm.location || "")}</td>
+                <td class="col-time mono">${escapeHtml(alarm.alarm_time || "")}</td>
+                <td class="description-cell">${escapeHtml(alarm.description || "")}</td>
+            `;
+
+            tbody.appendChild(tr);
+        }
+    }
+
+    function renderSeverityBadge(sev) {
+        let label = sev || "";
+        if (!label) label = "info";
+        const classes = ["sev-badge", sev];
+        return `<span class="${classes.join(" ")}">${escapeHtml(label)}</span>`;
+    }
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById("auto-refresh").value = "10";
+        setAutoRefreshFromSelect();
+
+        document.getElementById("auto-refresh").addEventListener("change", setAutoRefreshFromSelect);
+        document.getElementById("btn-refresh").addEventListener("click", loadAlarms);
+        document.getElementById("severity-filter").addEventListener("change", applyFiltersAndRender);
+        document.getElementById("quick-search").addEventListener("input", applyFiltersAndRender);
+        document.getElementById("toggle-cleared").addEventListener("change", () => {
+            const checked = document.getElementById("toggle-cleared").checked;
+            const viewText = checked
+                ? "View: Current alarm & history (Recovery included)"
+                : "View: Current alarm state (auto-clears on Recovery)";
+            document.getElementById("foot-view-mode").textContent = viewText;
+            loadAlarms();
+        });
+
+        loadAlarms();
+    });
+</script>
+</body>
+</html>
